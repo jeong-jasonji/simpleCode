@@ -1,2 +1,4 @@
 # simpleCode
-simplified code base scripts
+Simplified code base scripts
+
+Simplified the code that I use in a daily basis.
