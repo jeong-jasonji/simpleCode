@@ -54,6 +54,35 @@ def set_parameter_requires_grad(model_ft, model_freeze):
             layer_count += 1
     return params_to_update
 
+class simpleNet(nn.Module):
+    def __init__(self, cls_out, conv_layers=[6, 16], kernel=5, clf_layers=[120, 84]):
+        """
+        input: 
+            conv_layers: convolution layers to add e.g. [6, 16, 32] is 3 convolution layers with n_channels -> 6 -> 16 -> 32
+            kernel: kernel size to use e.g. [5] is apply kernel size 5x5 for all convolutions
+            clf_layers: linear classification layers to add e.g. [120, 84, 2] means linear layer going from input to 120, to 84 to 2 
+        """
+        super().__init__()
+        # make convolution layers
+        self.convolutions = torch.nn.Sequential()
+        for conv in range(len(conv_layers)):
+            self.convolutions.add_module('conv_{}'.format(conv+1), nn.Conv2d(conv_layers[conv - 1], conv_layers[conv], kernel) if conv != 0 else nn.Conv2d(3, conv_layers[conv], kernel))
+            self.convolutions.add_module('relu_{}'.format(conv+1), torch.nn.ReLU())
+            self.convolutions.add_module('maxpool_{}'.format(conv+1), torch.nn.MaxPool2d(2, 2))
+        
+        # make linear classification layers
+        self.classification = torch.nn.Sequential()
+        for linear in range(len(clf_layers)):
+            self.classification.add_module('linear_{}'.format(linear + 1), nn.Linear(clf_layers[linear - 1], clf_layers[linear]) if linear != 0 else nn.Linear(conv_layers[-1] * kernel * kernel, clf_layers[linear]))
+            self.classification.add_module('relu_{}'.format(linear+conv+1), torch.nn.ReLU())
+        self.classification.add_module('final_linear', nn.Linear(clf_layers[linear], cls_out))
+    
+    def forward(self, x):
+        x = self.convolutions(x)
+        x = torch.flatten(x, 1) # flatten all dimensions except batch
+        x = self.classification(x)
+        return x
+
 def initialize_model(opt):
     """
     Requires: opt.model_name, opt.use_pretrained, opt.model_freeze, opt.num_classes
@@ -78,8 +107,13 @@ def initialize_model(opt):
     model_ft = None
     input_size = None
     is_inception = False
+    
+    if opt.model_name == 'simpleNet':
+        model_ft = simpleNet(opt.num_classes)
+        params_to_update = set_parameter_requires_grad(model_ft, opt.model_freeze)
+        input_size = 32
 
-    if opt.model_name == "resnext101":
+    elif opt.model_name == "resnext101":
         """resnext101_32x8d
         """
         model_ft = models.resnext101_32x8d(pretrained=opt.use_pretrained)

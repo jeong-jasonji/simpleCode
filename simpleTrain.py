@@ -18,12 +18,16 @@ model_ft, opt.params_to_update, opt.input_size, opt.is_inception = simpleModels.
 transforms_train = transforms.Compose([
     # add transforms from: simpleTransforms
     simpleTransforms.makeRGB(),
+    #simpleTransforms.SegmentCardiacEcho(simpleCrop=(0.1, 0.05)),
+    #transforms.Pad(50),
     transforms.RandomRotation(40),
     transforms.RandomHorizontalFlip(),
     transforms.RandomVerticalFlip(),
     transforms.Resize((opt.input_size, opt.input_size)),
+    #transforms.ColorJitter(brightness=0.5, contrast=0.5),
     transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    #simpleTransforms.AddGaussianNoise(mean=0., std=0.1)
     ])
 transforms_val = transforms.Compose([
     simpleTransforms.makeRGB(),

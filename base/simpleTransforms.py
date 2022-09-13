@@ -18,6 +18,21 @@ class makeRGB(object):
 
     def __call__(self, img):
         return img.convert('RGB')
+        
+class AddGaussianNoise(object):
+    def __init__(self, p=0.5, mean=0., std=1.):
+        self.p = p
+        self.std = std
+        self.mean = mean
+        
+    def __call__(self, tensor):
+        if torch.rand(1) < self.p: 
+            return tensor + torch.randn(tensor.size()) * self.std + self.mean
+        else:
+            return tensor
+    
+    def __repr__(self):
+        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
 
 ### Cardiac project specific processing ###
 class AddCardiacRespiratoryLines(object):
@@ -51,17 +66,18 @@ class SegmentCardiacEcho(object):
     code to segment just the ultrasound image of the cardiac ultrasound frames
     Args:
         frame (np.array): the raw ultrasound array frame
-        simpleCrop (bool): option for simply cropping a standardized dataset input or using a more complex, connected components method
+        simpleCrop (tuple): either James' cone crop (None) or a simple rectangular crop (tuple input of the percentage of the height and width to remove)
     output:
         frame_crop (np.array): segmented cardiac ultrasound
     """
-    def __init__(self, simpleCrop=False):
+    def __init__(self, simpleCrop=None):
         self.simpleCrop = simpleCrop
 
     def __call__(self, frame):
-        if self.simpleCrop:  # if it's a standarized ultrasound, just crop a rectangle
-            frame_h = int(frame.shape[0] * 0.1)
-            frame_w = int(frame.shape[1] * 0.25)
+        frame = np.array(frame) # converting a PIL image to np.array
+        if self.simpleCrop is not None:  # if it's a standarized ultrasound, just crop a rectangle
+            frame_h = int(frame.shape[0] * self.simpleCrop[0])
+            frame_w = int(frame.shape[1] * self.simpleCrop[1])
             frame_crop = frame[frame_h:-frame_h, frame_w:-frame_w]
         else:  # if not standardized, use James' code
             ret2, threshhold = cv2.threshold(frame, 29, 255, 0)
@@ -85,7 +101,7 @@ class SegmentCardiacEcho(object):
 
             frame_crop = frame * contour_mask
 
-        return frame_crop
+        return Image.fromarray(frame_crop) # converting a PIL image to np.array
 
 class AblateCardiacEcho(object):
     """

@@ -8,13 +8,14 @@ import torch
 from torch.utils.data import Dataset
 from torch.utils.data import WeightedRandomSampler
 
-def simpleDataLoader(opt, dataframe_path, transforms, shuffle=True):
+def simpleDataLoader(opt, dataframe_path, transforms=None, shuffle=True):
     """
     A simple dataloader class
         - opt is an argparser
     """
-    dataset = simpleDataset(dataframe_path=dataframe_path, transform=transforms)
-    sampler = simpleWeightedSampler(dataset)
+    dataset = simpleDataset(opt=opt, dataframe_path=dataframe_path, transform=transforms)
+    if opt.weighted_sampling:
+        sampler = simpleWeightedSampler(dataset)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=shuffle, num_workers=opt.workers, sampler = sampler if opt.weighted_sampling else None)
 
     return dataloader
@@ -43,7 +44,7 @@ class simpleDataset(Dataset):
     """
     A simple custom dataset class
     """
-    def __init__(self, dataframe_path, transform=None):
+    def __init__(self, opt, dataframe_path, transform=None):
         """
         Args:
             dataframe_path (string): Path to the dataframe with image names, labels, and other information.
@@ -51,7 +52,16 @@ class simpleDataset(Dataset):
             transform (callable, optional): Optional transform(s) to be applied on a sample.
                 - Transforms shoud have the traditional transforms and any on-the-fly processing
         """
-        self.label = pd.read_pickle(dataframe_path) if '.pkl' in dataframe_path else pd.read_csv(dataframe_path)
+        if opt.cls_select is None:
+            self.label = pd.read_pickle(dataframe_path) if '.pkl' in dataframe_path else pd.read_csv(dataframe_path)
+        else:  # if selecting specific classes
+            df = pd.read_pickle(dataframe_path) if '.pkl' in dataframe_path else pd.read_csv(dataframe_path)
+            cls_ids = [int(i) for i in opt.cls_select.split(',')]
+            df = df[df['img_label'].isin(cls_ids)].reset_index(drop=True)
+            for i in range(len(cls_ids)):
+                df['img_label'] = df['img_label'].apply(lambda x: i if x == cls_ids[i] else x)
+            self.label = df
+
         self.transform = transform
 
     def __len__(self):

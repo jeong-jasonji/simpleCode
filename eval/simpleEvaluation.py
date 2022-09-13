@@ -15,7 +15,7 @@ from random import randint, sample
 import matplotlib.pyplot as plt
 
 
-def make_onehot_labels(output):
+def extract_labels_probabilities(output):
     """
     calculates the one-hot encoded labels from the csv prediction outputs
     """
@@ -133,7 +133,7 @@ def plot_AUC(tpr, fpr, roc_auc, cls_dict=None, classwise=False):
     plt.grid()
     plt.show()
 
-def generate_macro_AUCs(df_dict):
+def generate_multi_macro_AUCs(df_dict):
     """
     df_dict: dictionary of {test_name:csv path}
     """
@@ -141,7 +141,7 @@ def generate_macro_AUCs(df_dict):
     plt.figure(dpi=200)
     for i, k in zip(df_dict.keys(), range(len(df_dict))):
         df = pd.read_csv(df_dict[i])
-        numerical_labels, onehot_labels, probs = make_onehot_labels(df)
+        numerical_labels, onehot_labels, probs = extract_labels_probabilities(df)
         tpr, fpr, thresholds, roc_auc = make_roc(onehot_labels, probs)
         plt.plot(fpr['macro'], tpr['macro'], color=plt.cm.tab10(k), lw=lw, label='{0} (AUC = {1:0.2f})'.format(i, roc_auc['macro']))
     plt.plot([0, 1], [0, 1], 'k--', lw=lw)  # 50%
@@ -187,7 +187,7 @@ def exam_probabilities(df):
     plt.show()
 
 
-def report_boostrap_CI(df, data_frac, examwise=False):
+def report_boostrap_CI(df, data_frac, examwise=False, return_df=False, verbose=False):
     """
     a more generalized bootstrap confidence interval calculation function
     """
@@ -205,8 +205,8 @@ def report_boostrap_CI(df, data_frac, examwise=False):
             min_size[i] = int(max_size[i] * data_frac)
         else:
             min_size[i] = data_frac
-
-    print('build precision, recall, f1score dictionaries...')
+    if verbose:
+        print('build precision, recall, f1score dictionaries...')
     # create a dictionary of precision, recall, and f1 scores, and prediction probability
     if not examwise:
         avg_prob = {}
@@ -261,26 +261,9 @@ def report_boostrap_CI(df, data_frac, examwise=False):
         overall_recall.append(dct['weighted avg']['recall'])
         overall_fscore.append(dct['weighted avg']['f1-score'])
 
-        if (i + 1 % 100) == 0:
-            print('Iteration {}'.format(i + 1))
-            for j in ['0', '1', '2']:
-                print('Class: {}'.format(j))
-                print('Precision:{} +/- {}\nRecall:{} +/- {}\nFScore:{} +/- {}\n'.format(
-                    np.mean(avg_precision[j]), np.std(avg_precision[j]),
-                    np.mean(avg_recall[j]), np.std(avg_recall[j]),
-                    np.mean(avg_fscore[j]), np.std(avg_fscore[j]),
-                ))
-            print('Overall')
-            print('Precision:{} +/- {}\nRecall:{} +/- {}\nFScore:{} +/- {}\n'.format(
-                np.mean(overall_precision[j]), np.std(overall_precision[j]),
-                np.mean(overall_recall[j]), np.std(overall_recall[j]),
-                np.mean(overall_fscore[j]), np.std(overall_fscore[j]),
-            ))
-
     # report final one
-    print('Final Report (1000 iterations)')
-    noshow = True
-    if noshow:
+    if verbose:
+        print('Final Report (1000 iterations)')
         for j in cls_strings:
             print('Class: {}'.format(j))
             if not examwise:
@@ -303,24 +286,14 @@ def report_boostrap_CI(df, data_frac, examwise=False):
             np.mean(overall_recall), np.std(overall_recall),
             np.mean(overall_fscore), np.std(overall_fscore),
         ))
+    if return_df:
+        final_report_df = []
+        for j in cls_strings:
+            precision_range = '[{:.3f}-{:.3f}]'.format(np.mean(avg_precision[j]), np.std(avg_precision[j]))
+            recall_range = '[{:.3f}-{:.3f}]'.format(np.mean(avg_recall[j]), np.std(avg_recall[j]))
+            f1score_range = '[{:.3f}-{:.3f}]'.format(np.mean(avg_fscore[j]), np.std(avg_fscore[j]))
+            line = [precision_range, recall_range, f1score_range]
+            final_report_df.append(line)
+        final_report_df = pd.DataFrame(final_report_df)
 
-    final_report_1 = []
-    for j in cls_strings:
-        precision_range = '[{:.3f}, {:.3f}]'.format(np.mean(avg_precision[j]) - np.std(avg_precision[j]),
-                                                    np.mean(avg_precision[j]) + np.std(avg_precision[j]))
-        recall_range = '[{:.3f}, {:.3f}]'.format(np.mean(avg_recall[j]) - np.std(avg_recall[j]),
-                                                 np.mean(avg_recall[j]) + np.std(avg_recall[j]))
-        f1score_range = '[{:.3f}, {:.3f}]'.format(np.mean(avg_fscore[j]) - np.std(avg_fscore[j]),
-                                                  np.mean(avg_fscore[j]) + np.std(avg_fscore[j]))
-        line = [precision_range, recall_range, f1score_range]
-        final_report_1.append(line)
-    final_report_1 = pd.DataFrame(final_report_1)
-    final_report_2 = []
-    for j in cls_strings:
-        precision_range = '[{:.3f}-{:.3f}]'.format(np.mean(avg_precision[j]), np.std(avg_precision[j]))
-        recall_range = '[{:.3f}-{:.3f}]'.format(np.mean(avg_recall[j]), np.std(avg_recall[j]))
-        f1score_range = '[{:.3f}-{:.3f}]'.format(np.mean(avg_fscore[j]), np.std(avg_fscore[j]))
-        line = [precision_range, recall_range, f1score_range]
-        final_report_2.append(line)
-    final_report_2 = pd.DataFrame(final_report_2)
-    return final_report_1, final_report_2
+        return final_report_df

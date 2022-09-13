@@ -1,4 +1,5 @@
 from .baseOptions import BaseOptions
+from .GANOptions import BaseGANOptions
 
 class TrainOptions(BaseOptions):
     def initialize(self):
@@ -13,5 +14,11 @@ class TestOptions(BaseOptions):
         BaseOptions.initialize(self)
         # any options to adjust in training (none for now)
         self.parser.add_argument('--output_train_val', type=bool, default=False, help='run eval on train and val sets as well?')
+
+        self.isTrain = False
+
+class GANTrainOptions(BaseGANOptions):
+    def initialize(self):
+        BaseGANOptions.initialize(self)
 
         self.isTrain = True
