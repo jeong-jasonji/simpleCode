@@ -54,7 +54,7 @@ def set_parameter_requires_grad(model_ft, model_freeze):
             layer_count += 1
     return params_to_update
 
-class simpleNet(nn.Module):
+class simpleConvNet(nn.Module):
     def __init__(self, cls_out, conv_layers=[6, 16], kernel=5, clf_layers=[120, 84]):
         """
         input: 
@@ -108,8 +108,8 @@ def initialize_model(opt):
     input_size = None
     is_inception = False
     
-    if opt.model_name == 'simpleNet':
-        model_ft = simpleNet(opt.num_classes)
+    if opt.model_name == 'simpleConvNet':
+        model_ft = simpleConvNet(opt.num_classes)
         params_to_update = set_parameter_requires_grad(model_ft, opt.model_freeze)
         input_size = 32
 

@@ -54,14 +54,17 @@ class simpleDataset(Dataset):
         """
         if opt.cls_select is None:
             self.label = pd.read_pickle(dataframe_path) if '.pkl' in dataframe_path else pd.read_csv(dataframe_path)
+            if opt.df_labels is not None:
+                self.label.rename(columns=opt.df_labels, inplace=True)
         else:  # if selecting specific classes
             df = pd.read_pickle(dataframe_path) if '.pkl' in dataframe_path else pd.read_csv(dataframe_path)
+            if opt.df_labels is not None:
+                self.label = self.label.rename(columns=opt.df_labels, inplace=True)
             cls_ids = [int(i) for i in opt.cls_select.split(',')]
             df = df[df['img_label'].isin(cls_ids)].reset_index(drop=True)
             for i in range(len(cls_ids)):
                 df['img_label'] = df['img_label'].apply(lambda x: i if x == cls_ids[i] else x)
             self.label = df
-
         self.transform = transform
 
     def __len__(self):

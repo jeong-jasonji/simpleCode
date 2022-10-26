@@ -90,3 +90,183 @@ class simpleLinearDiscriminator(nn.Module):
                   nn.LeakyReLU(0.2, inplace=True)]
 
         return nn.Sequential(*layers)
+
+class simpleDCGANGenerator(nn.Module):
+    def __init__(self, final_img_size, condition=False, nz=100, nl=10, selu=True):
+        super(simpleDCGANGenerator, self).__init__()
+        """
+        simple DCGAN with conditional elements based on ACGAN and https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
+            default latent vector (nz) = 100
+            default labels (nl) = 10
+            default final image size (final_img_size) = [3, 64, 64]
+                default channels (nc) = img_size[0]
+                default generator feature map (ngf) = img_size[-1]
+            default condition (condition) = bool
+                conditioned generation or not
+            default SELU (selu) = True
+                to use SELU instead of batch norm and relu
+        """
+        self.img_size = final_img_size
+        self.nz = nz
+        self.nl = nl
+        self.selu = selu
+        self.condition = condition
+        # calculate the number of layers needed for the output image
+        self.n_layers, feat_mult = self.calc_layers(self.img_size[-1])
+
+        # make the latent vector input branch
+        self.input_branch_4x4 = nn.Sequential(
+            nn.ConvTranspose2d(self.nz, self.img_size[-1] * feat_mult, 4, 1, 0, bias=False),
+        )
+        current_size = 4
+        # make the label branch
+        self.label_branch = nn.Sequential(
+            # input is L (nl), going into a convolution
+            nn.ConvTranspose2d(1, self.nl, 4, 1, 0, bias=False),
+        )
+        # make the generator model
+        self.main = nn.Sequential()
+        start_feat = self.img_size[-1] * feat_mult + self.nl if self.condition else self.img_size[-1] * feat_mult
+        if self.selu:
+            self.main.add_module('SELU', nn.SELU(inplace=True))
+        else:
+            self.main.add_module('BatchNorm+ReLU',
+                nn.Sequential(
+                    nn.BatchNorm2d(start_feat),
+                    nn.ReLU(True)
+                )
+            )
+        for i in range(self.n_layers - 1):
+            # each layer doubles the image size
+            current_size *= 2
+            if i == 0:
+                self.main.add_module('ConvTranspose_{}x{}'.format(current_size, current_size),
+                                     self.add_convTranspose_block(start_feat, self.img_size[-1] * feat_mult // 2, 4,
+                                                                  2, 1)
+                                     )
+            else:
+                self.main.add_module('ConvTranspose_{}x{}'.format(current_size, current_size),
+                                     self.add_convTranspose_block(self.img_size[-1] * feat_mult, self.img_size[-1] * feat_mult // 2, 4, 2, 1)
+                                     )
+            feat_mult = feat_mult // 2
+        current_size *= 2
+        self.main.add_module('ConvTranspose+Tanh_{}x{}'.format(current_size, current_size),
+                             nn.Sequential(
+                                 nn.ConvTranspose2d(self.img_size[-1], self.img_size[0], 4, 2, 1, bias=False),
+                                 nn.Tanh()
+                             )
+                             )
+
+    def forward(self, input, label=None):
+        inputs = self.input_branch_4x4(input)
+        if self.condition:
+            labels = self.label_branch(label)
+            embed = torch.cat([inputs, labels], 1)
+            return self.main(embed)
+        else:
+            return self.main(inputs)
+
+    def add_convTranspose_block(self, in_ch, out_ch, kernel, stride, padding):
+        """
+        convolutional transpose layer modeled after pytorch DCGAN tutorial
+        https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
+        """
+        if self.selu:
+            layers = [nn.ConvTranspose2d(in_ch, out_ch, kernel, stride, padding, bias=False),
+                      nn.SELU(inplace=True)]
+        else:
+            layers = [nn.ConvTranspose2d(in_ch, out_ch, kernel, stride, padding, bias=False),
+                      nn.BatchNorm2d(out_ch),
+                      nn.ReLU(True)]
+
+        return nn.Sequential(*layers)
+
+    def calc_layers(self, img_size, current_size=4):
+        n_layers = 0
+        while current_size < img_size:
+            current_size *= 2
+            n_layers += 1
+
+        return n_layers, 2**(n_layers-1)
+
+
+class simpleDCGANDiscriminator(nn.Module):
+    def __init__(self, input_img_size, n_layers, condition=False, nl=10, selu=True, acgan=False):
+        super(simpleDCGANDiscriminator, self).__init__()
+        self.img_size = input_img_size
+        self.condition = condition
+        self.nl = nl
+        self.selu = selu
+        self.n_layers = n_layers
+        self.acgan = acgan
+
+        self.label_branch = nn.Sequential(
+            # input is 1 x 1 x 1
+            nn.ConvTranspose2d(1, nl, kernel_size=self.img_size[-1], stride=1, padding=0, bias=False),
+        )
+
+        # make the discriminator model
+        self.main = nn.Sequential()
+        current_size = self.img_size[-1]
+        for i in range(self.n_layers):
+            if i == 0:
+                start_size = self.img_size[0] + self.nl if self.condition and not self.acgan else self.img_size[0]
+                # each layer doubles the image size
+                self.main.add_module('Conv2D_{}x{}'.format(start_size, current_size),
+                                     self.add_conv_block(i, start_size, current_size, 4, 2, 1)
+                                     )
+            else:
+                self.main.add_module('Conv2D_{}x{}'.format(current_size, int(current_size * 2)),
+                                     self.add_conv_block(i, current_size, int(current_size * 2), 4, 2, 1)
+                                     )
+                current_size = int(current_size * 2)
+        if self.acgan:
+            # variation of acgan where teh original ACGAN uses linear classifier vs this one uses the final 2D conv layer
+            self.adv_layer = nn.Sequential(
+                nn.Conv2d(current_size, 1, 4, 1, 0, bias=False),
+                nn.Sigmoid()
+            )
+            self.aux_layer = nn.Sequential(
+                nn.Conv2d(current_size, self.nl, 4, 1, 0, bias=False),
+                nn.Softmax()
+            )
+        else:
+            self.main.add_module('Conv2D+Sigmoid_{}x{}'.format(current_size, current_size),
+                                 nn.Sequential(
+                                     nn.Conv2d(current_size, 1, 4, 1, 0, bias=False),
+                                     nn.Sigmoid()
+                                 )
+                                 )
+
+    def forward(self, input, in_label=None):
+        if self.condition:
+            if self.acgan:
+                out = self.main(input)
+                validity = self.adv_layer(out)
+                label = self.aux_layer(out)
+                return validity, label
+            else:
+                labels = self.label_branch(in_label)
+                embed = torch.cat([input, labels], 1)
+                return self.main(embed), None
+        else:
+            return self.main(input), None
+
+    def add_conv_block(self, i, in_ch, out_ch, kernel, stride, padding):
+        """
+        convolutional layer modeled after pytorch DCGAN tutorial
+        https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
+        """
+        if self.selu:
+            layers = [nn.Conv2d(in_ch, out_ch, kernel, stride, padding, bias=False),
+                      nn.SELU(inplace=True)]
+        else:
+            if i == 0:
+                layers = [nn.Conv2d(in_ch, out_ch, kernel, stride, padding, bias=False),
+                          nn.LeakyReLU(0.2, inplace=True)]
+            else:
+                layers = [nn.Conv2d(in_ch, out_ch, kernel, stride, padding, bias=False),
+                          nn.BatchNorm2d(out_ch),
+                          nn.LeakyReLU(0.2, inplace=True)]
+
+        return nn.Sequential(*layers)

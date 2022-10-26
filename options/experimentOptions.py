@@ -2,8 +2,8 @@ from .baseOptions import BaseOptions
 from .GANOptions import BaseGANOptions
 
 class TrainOptions(BaseOptions):
-    def initialize(self):
-        BaseOptions.initialize(self)
+    def initialize(self, json_filepath):
+        BaseOptions.initialize(self, json_filepath)
         # any options to adjust in training (none for now)
         self.parser.add_argument('--output_csv', type=bool, default=True, help='generate a final csv of the predictions on train and val sets?')
 

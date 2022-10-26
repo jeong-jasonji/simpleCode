@@ -1,63 +1,24 @@
 import os
+import json
 import torch
 import argparse
 from base import utilsProcessing
 
 class BaseOptions():
-    def __init__(self):
-        self.parser = argparse.ArgumentParser()
+    def __init__(self, json_filepath):
         self.initialized = False
+        self.json_filepath = json_filepath
 
     def initialize(self):
-
-        # experiment specifics
-        self.parser.add_argument('--test_name', type=str, default='mnist_4_9_trad', help='name of the experiment. It decides where to store samples and models')
-        self.parser.add_argument('--checkpoints_dir', type=str, default='/media/Datacenter_storage/DecisionGAN/', help='models are saved here')
-        self.parser.add_argument('--max_epochs', type=int, default=50, help='maximum number of epochs to train for')
-        self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
-        self.parser.add_argument('--num_classes', type=int, default=2, help='number of classes in the classification task')
-        self.parser.add_argument('--dataframes_dir', type=str, default='./dataframes/mnist', help='directory where the dataframes are stored')
-        self.parser.add_argument('--cls_select', type=str, default='4,9', help='selecting specific classes to use only: e.g. 0  0,3,7, 0,8')
-
-        # training hyperparameters
-        self.parser.add_argument('--learning_rate', type=float, default=0.0002, help='initial learning rate')
-        self.parser.add_argument('--optimizer', type=str, default='adam', help='optimizer to use')
-        self.parser.add_argument('--weight_decay', type=float, default=0.0, help='weight decay for the optimizer')
-        self.parser.add_argument('--optim_metric', type=str, default='avg_f1', help='validation metric to optimize (avg_loss, avg_acc, avg_f1) - more to be added')
-        self.parser.add_argument('--loss_fx', type=str, default='crossEntropy', help='loss function to use (crossEntropy, sigmoid_focal, weighted_focal, )')
-        self.parser.add_argument('--cls_weights', type=str, default=None, help='manual class weights e.g None, 0.01,0.09,0.9')
-        self.parser.add_argument('--weighted_sampling', type=bool, default=False, help='use weighted sampling')
-        self.parser.add_argument('--patience', type=int, default=5, help='early stopping patience')
-        self.parser.add_argument('--batch_size', type=int, default=32, help='input batch size')
-
-        # model specifics
-        self.parser.add_argument('--model_name', type=str, default='simpleNet', help='model architecture to use')
-        self.parser.add_argument('--model_freeze', type=float, default=0.0, help='percentage of the model weights to freeze')
-        self.parser.add_argument('--prev_model', type=str, default=None, help='path to a previous model to load if specified')
-        self.parser.add_argument('--save_every_epoch', type=bool, default=True, help='save models every epoch')
-        self.parser.add_argument('--is_inception', type=bool, default=False, help='is the model a variant of InceptionNet?')
-        self.parser.add_argument('--use_pretrained', type=bool, default=True, help='use ImageNet pretrained weights?')
-        self.parser.add_argument('--fusion_model', type=bool, default=False, help='is this a fusion model with multiple inputs - currently not available until updated')
-
-        # preprocessing arguments
-        self.parser.add_argument('--cardiac_ablation', type=str, default=None, help='quadrant to remove (None, 1-8, cross_only, cross_remove)')
-        self.parser.add_argument('--cardiac_remove_bottom_third', type=bool, default=False, help='keep the bottom third or not')
-
-        # augmentations
-        self.parser.add_argument('--aug_mode', type=str, default='transforms', help='augmentations to use (transforms or GAN) - currently not available until updated')
-
-        # for setting inputs
-        self.parser.add_argument('--workers', type=int, default=4, help='how many subprocesses to use for data loading')
-        self.parser.add_argument('--verbose', type=bool, default=False, help='verbosity on or off')
-
+        # load from the json file the test arguments
+        self.opt = argparse.Namespace(**json.load(open(self.json_filepath, "r")))
         self.initialized = True
 
     def parse(self, save=True):
         # set up initialization
         if not self.initialized:
             self.initialize()
-        self.opt = self.parser.parse_args()
-        self.opt.isTrain = self.isTrain   # train or test
+        #self.opt.isTrain = self.isTrain   # train or test
 
         # set gpu ids and set cuda devices
         str_ids = self.opt.gpu_ids.split(',')
@@ -93,7 +54,7 @@ class BaseOptions():
         print('-------------- End ----------------')
 
         # set up save dir and logs
-        self.opt.save_dir = os.path.join(self.opt.checkpoints_dir, self.opt.test_name + '/')
+        self.opt.save_dir = os.path.join(self.opt.checkpoints_dir, str(self.opt.test_name) + '/')
         utilsProcessing.mkdirs(self.opt.save_dir)
         if save and self.opt.prev_model is None:
             # save test options

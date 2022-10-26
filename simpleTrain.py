@@ -5,11 +5,14 @@ import torch
 import pickle
 import pandas as pd
 from torchvision import transforms
-from options.experimentOptions import TrainOptions
+from options.baseOptions import BaseOptions
 from base import simpleModels, simpleDataloader, simpleClassification, simpleTransforms
 
+# test json file path
+test_json = 'test_options.json'
+
 # python simpleTrain.py
-opt = TrainOptions().parse()
+opt = BaseOptions(json_filepath=test_json).parse()
 
 # initialize model
 model_ft, opt.params_to_update, opt.input_size, opt.is_inception = simpleModels.initialize_model(opt)
@@ -17,12 +20,12 @@ model_ft, opt.params_to_update, opt.input_size, opt.is_inception = simpleModels.
 # make preprocessing and transforms
 transforms_train = transforms.Compose([
     # add transforms from: simpleTransforms
-    simpleTransforms.makeRGB(),
-    #simpleTransforms.SegmentCardiacEcho(simpleCrop=(0.1, 0.05)),
+    #simpleTransforms.makeRGB(),
+    #simpleTransforms.SegmentCardiacEcho(simpleCrop=(0.1, 0.05)) if opt.cardiac_ablation is not None else simpleTransforms.NoneTransform()
     #transforms.Pad(50),
-    transforms.RandomRotation(40),
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomVerticalFlip(),
+    #transforms.RandomRotation(40),
+    #transforms.RandomHorizontalFlip(),
+    #transforms.RandomVerticalFlip(),
     transforms.Resize((opt.input_size, opt.input_size)),
     #transforms.ColorJitter(brightness=0.5, contrast=0.5),
     transforms.ToTensor(),

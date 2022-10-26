@@ -18,7 +18,18 @@ class makeRGB(object):
 
     def __call__(self, img):
         return img.convert('RGB')
-        
+
+class NoneTransform(object):
+    """
+    no transform
+    """
+
+    def __init__(self):
+        self.initalized = True
+
+    def __call__(self, img):
+        return img
+
 class AddGaussianNoise(object):
     def __init__(self, p=0.5, mean=0., std=1.):
         self.p = p

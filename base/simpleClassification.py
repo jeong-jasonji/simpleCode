@@ -32,7 +32,14 @@ def train_epochs(opt, model, dataloaders, criterion, optimizer):
               file=opt.log)
 
         # deep copy the model if the accuracy and auc improves
-        if epoch_metrics['val'][opt.optim_metric] > best_states[opt.optim_metric]:
+        if opt.optim_metric != 'avg_loss' and epoch_metrics['val'][opt.optim_metric] > best_states[opt.optim_metric]:
+            best_states['avg_loss'] = epoch_metrics['val']['avg_loss']
+            best_states['avg_acc'] = epoch_metrics['val']['avg_acc']
+            best_states['avg_f1'] = epoch_metrics['val']['avg_f1']
+            best_states['last_improvement_epoch'] = epoch
+            best_states['model_wts'] = copy.deepcopy(model.state_dict())
+            print('Improved {}, Updated weights \n'.format(opt.optim_metric), file=opt.log)
+        elif opt.optim_metric == 'avg_loss' and epoch_metrics['val'][opt.optim_metric] < best_states[opt.optim_metric]:
             best_states['avg_loss'] = epoch_metrics['val']['avg_loss']
             best_states['avg_acc'] = epoch_metrics['val']['avg_acc']
             best_states['avg_f1'] = epoch_metrics['val']['avg_f1']
@@ -79,7 +86,7 @@ def train_epochs(opt, model, dataloaders, criterion, optimizer):
 
     model.load_state_dict(best_states['model_wts'])
 
-    return model, histories
+    return model, histories, best_states
 
 
 def train_epoch(opt, model, dataloaders, criterion, optimizer):
@@ -173,7 +180,7 @@ def model_predict(opt, model, dataloader):
 
             out_dict['true'].extend(labels.data.tolist())
             out_dict['pred'].extend(preds.tolist())
-            out_dict['ids'].extend(pt_id.data.tolist())
+            out_dict['ids'].extend(list(pt_id))
             for i in range(opt.num_classes):
                 out_dict['score_{}'.format(i)].extend(score[:, i].tolist())
 
